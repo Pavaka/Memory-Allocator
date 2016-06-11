@@ -12,8 +12,8 @@ public:
 	~Allocator();
 	void* Allocate(int Bytes);
 	void Deallocate(void*);
-
 };
+
 template<typename T>
 T *IncrementPointer(T *p, int n)
 {
