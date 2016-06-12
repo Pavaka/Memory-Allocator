@@ -20,6 +20,9 @@ Allocator::Allocator(int Bytes)
 
 		//Set last block  to size zero and used aka 1
 		*reinterpret_cast<int*>(reinterpret_cast<char*>(this->Memory) + Bytes - TAG_SIZE) = 1;
+		//set the TAG_SIZE before memory to zero and used
+		*reinterpret_cast<int*>(reinterpret_cast<char*>(this->Memory) + ALLOCATOR_BLOCK_SIZE - 2*TAG_SIZE) = 1;
+
 	}
 	else
 	{
@@ -36,7 +39,7 @@ void * Allocator::Allocate(int Bytes)
 {
 	//First Block
 	void* CurrentBlockAddress = IncrementPointer(this->Memory, ALLOCATOR_BLOCK_SIZE - TAG_SIZE);
-	void* EndOfMemory = IncrementPointer(this->Memory, this->MemorySize);
+	void* EndOfMemory = IncrementPointer(this->Memory, this->MemorySize - TAG_SIZE);
 	//Required block size
 	int RequiredSize = Bytes + 2 * TAG_SIZE + (ALLOCATOR_BLOCK_SIZE - (Bytes + 2 * TAG_SIZE) % 16);
 	//std::cout << CurrentBlockAddress << std::endl;
@@ -76,8 +79,35 @@ void * Allocator::Allocate(int Bytes)
 	
 }
 
-void Allocator::Deallocate(void *)
+void Allocator::Deallocate(void* Pointer)
 {
+	void* BlockToBeFreed = IncrementPointer(Pointer, -TAG_SIZE);
+	int BlockToBeFreedSize = *reinterpret_cast<int*>(BlockToBeFreed) & ~1;
+	//Mark the block to be freed as free
+	*reinterpret_cast<int*>(BlockToBeFreed) = BlockToBeFreedSize;
+	*reinterpret_cast<int*>(IncrementPointer(BlockToBeFreed, BlockToBeFreedSize-TAG_SIZE)) = BlockToBeFreedSize;
+
+	//Check right block if free
+	void* RightBlock = IncrementPointer(BlockToBeFreed, BlockToBeFreedSize);
+	int RightBlockMask = *reinterpret_cast<int*>(RightBlock) & 1;
+
+	//check left block
+	void* LeftBlockRightTag = IncrementPointer(BlockToBeFreed, -TAG_SIZE);
+	int LeftBlockMask = *reinterpret_cast<int*>(LeftBlockRightTag) & 1;
+
+	//int LeftBlockSize = *reinterpret_cast<int*>(LeftBlock) & ~1;
+	if (!RightBlockMask)
+	{
+		this->Coalesce(BlockToBeFreed, RightBlock);
+	}
+	if (!LeftBlockMask)
+	{
+		//free block so no reason to unmask
+		int LeftBlockSize = *reinterpret_cast<int*>(LeftBlockRightTag);
+		void* LeftBlock = IncrementPointer(BlockToBeFreed, -LeftBlockSize);
+		this->Coalesce(LeftBlock, BlockToBeFreed);
+	}
+
 
 }
 
@@ -101,12 +131,24 @@ void Allocator::PrintTags(void* Pointer)
 void Allocator::PrintAllocatorTags()
 {
 	void* CurrentBlockAddress = IncrementPointer(this->Memory, ALLOCATOR_BLOCK_SIZE - TAG_SIZE);
-	std::cout << "Allocator Size " << this->MemorySize << std::endl;
-	void* EndOfMemory = IncrementPointer(this->Memory, this->MemorySize);
-	while (CurrentBlockAddress < IncrementPointer(EndOfMemory, -TAG_SIZE))
+	std::cout << "---PRINT ALLOCATOR--- \nAllocator Size " << this->MemorySize << std::endl;
+	void* EndOfMemory = IncrementPointer(this->Memory, this->MemorySize - TAG_SIZE);
+	while (CurrentBlockAddress < EndOfMemory)
 	{
-		std::cout << "allocator tags " << CurrentBlockAddress << std::endl;
 		this->PrintTags(IncrementPointer(CurrentBlockAddress, TAG_SIZE));
 		CurrentBlockAddress = IncrementPointer(CurrentBlockAddress, (*reinterpret_cast<int*>(CurrentBlockAddress) & ~1));
 	}
+}
+
+void Allocator::Coalesce(void * LeftBlock, void * RightBlock)
+{
+	//Get sizes
+	int LeftBlockSize = *reinterpret_cast<int*>(LeftBlock);
+	int RightBlockSize = *reinterpret_cast<int*>(RightBlock);
+	int NewBlockSize = LeftBlockSize + RightBlockSize;
+	//Set both tags
+	*reinterpret_cast<int*>(LeftBlock) = NewBlockSize;
+	*reinterpret_cast<int*>(IncrementPointer(LeftBlock, NewBlockSize - TAG_SIZE)) = NewBlockSize;
+
+
 }

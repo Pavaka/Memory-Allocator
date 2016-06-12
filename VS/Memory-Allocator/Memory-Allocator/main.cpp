@@ -7,21 +7,29 @@
 int main()
 {
 
-	Allocator allocator(1<<16);
+	Allocator allocator(1<<11);
 
-	//void* MyMemory = allocator.Allocate((1<<10) * sizeof(int));
 
-	allocator.Allocate(1 << 10);
-	allocator.Allocate(65);
+	void* All1 = allocator.Allocate(300);
+	void* All2 = allocator.Allocate(400);
+	void* All3 = allocator.Allocate(100);
+
+
+	allocator.Deallocate(All2);
 	allocator.PrintAllocatorTags();
 
+	allocator.Deallocate(All1);
+	allocator.PrintAllocatorTags();
 
+	allocator.Deallocate(All3);
+	allocator.PrintAllocatorTags();
 
 	//int* intmem = reinterpret_cast<int*>(MyMemory);
-	//for (int i = 0; i < 1<<5; ++i)
+	//for (int i = 0; i < 1<<13; ++i)
 	//{
 	//	intmem[i] = i;
 	//}
+	//allocator.PrintAllocatorTags();
 	//for (int i = 0; i < 1<<5; ++i)
 	//{
 	//	std::cout << intmem[i] << std::endl;
