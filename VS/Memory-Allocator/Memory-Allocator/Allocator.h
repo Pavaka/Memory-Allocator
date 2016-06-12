@@ -1,5 +1,8 @@
 const std::size_t TAG_SIZE = sizeof(int);
 const std::size_t ALLOCATOR_BLOCK_SIZE = 16;
+
+
+
 class Allocator
 {
 private:
@@ -12,6 +15,8 @@ public:
 	~Allocator();
 	void* Allocate(int Bytes);
 	void Deallocate(void*);
+	void PrintTags(void* Pointer);
+	void PrintAllocatorTags();
 };
 
 template<typename T>
