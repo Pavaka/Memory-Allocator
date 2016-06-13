@@ -14,7 +14,13 @@ int main()
 	//void* All4 = allocator.Allocate(500);
 	//void* All5 = allocator.Allocate(100);
 	allocator.PrintAllocatorTags();
-	allocator.Reallocate(All2, 1000);
+	allocator.Deallocate(All2);
+	allocator.PrintAllocatorTags();
+
+	allocator.Reallocate(All1, 100);
+	allocator.PrintAllocatorTags();
+
+	allocator.Reallocate(All1, 1000);
 	allocator.PrintAllocatorTags();
 
 	//allocator.Deallocate(All2);
