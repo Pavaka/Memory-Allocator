@@ -2,7 +2,7 @@
 #include <iostream>
 #include "MyAllocator.h"
 
-static MyAllocator MyAlloc(1<<20);
+static MyAllocator MyAlloc(1<<25);
 
 template <class T>
 class STLAllocator

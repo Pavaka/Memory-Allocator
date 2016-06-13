@@ -8,9 +8,13 @@ private:
 	void* Memory;
 	int MemorySize;
 	MyAllocator();
-	//Works on the assumpion that both blocks are free, 
+	//Coalseces two (used or unused) blocks as a new FREE block sum of them
 	//pointers are to the tag begining of them
 	void Coalesce(void* LeftBlock, void* RightBlock);
+	void* FindSuitableBlock(void* StartingAddress, void* EndAddress, int RequiredSize);
+	//Splits a block into two blocks, their availability is based on the original block availability
+	//should the returned blocks be marked as used or unused 0 unused 1 used
+	std::pair<void*, void*> SplitBlock(void*, int FirstBlockSize, int LeftBlockUsed = 0, int RightBlockUsed = 0);
 public:
 	MyAllocator(int Bytes);
 	~MyAllocator();
@@ -21,6 +25,7 @@ public:
 	void PrintTags(void* Pointer);
 	void PrintAllocatorTags();
 	int GetMemorySize();
+	void* Reallocate(void*, int);
 };
 
 template<typename T>

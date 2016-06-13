@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <malloc.h>
+#include <cstring>
 #include "MyAllocator.h"
 
 MyAllocator::MyAllocator(int Bytes)
@@ -44,13 +45,16 @@ void * MyAllocator::Allocate(int Bytes)
 	//std::cout << EndOfMemory << std::endl;
 	//std::cout << "Required size = " << RequiredSize << std::endl;
 	//std::cout << ( int)EndOfMemory - (int)this->Memory << std::endl;
-	////Find satisfying block
-	while ( (CurrentBlockAddress < EndOfMemory) && 
-				( (*reinterpret_cast<int*>(CurrentBlockAddress) & 1) || 
-					(*reinterpret_cast<int*>(CurrentBlockAddress) < RequiredSize) ) )
-	{
-		CurrentBlockAddress = IncrementPointer(CurrentBlockAddress, (*reinterpret_cast<int*>(CurrentBlockAddress) & ~1 ));
-	}
+	//Find satisfying block
+
+	//while ( (CurrentBlockAddress < EndOfMemory) && 
+	//			( (*reinterpret_cast<int*>(CurrentBlockAddress) & 1) || 
+	//				(*reinterpret_cast<int*>(CurrentBlockAddress) < RequiredSize) ) )
+	//{
+	//	CurrentBlockAddress = IncrementPointer(CurrentBlockAddress, (*reinterpret_cast<int*>(CurrentBlockAddress) & ~1 ));
+	//}
+	//Use the function
+	CurrentBlockAddress = this->FindSuitableBlock(CurrentBlockAddress, EndOfMemory, RequiredSize);
 
 	int CurrentBlockSize = *reinterpret_cast<int*>(CurrentBlockAddress) &  ~1;
 
@@ -143,13 +147,128 @@ int MyAllocator::GetMemorySize()
 	return this->MemorySize;
 }
 
-void MyAllocator::Coalesce(void * LeftBlock, void * RightBlock)
+void* MyAllocator::Reallocate(void* Pointer, int RequestedBlockSize)
+{
+	void* OldBlockAddress = IncrementPointer(Pointer, -TAG_SIZE);
+	int OldBlockAddressSize = *reinterpret_cast<int*>(OldBlockAddress) & ~1;
+	
+	int NewBlockSize = RequestedBlockSize + 2 * TAG_SIZE + (ALLOCATOR_BLOCK_SIZE - (RequestedBlockSize + 2 * TAG_SIZE) % 16);
+	//If reallocation is to smaller, just shrink it
+	if (NewBlockSize == OldBlockAddressSize)
+	{
+		return Pointer;
+	}
+	else if (NewBlockSize < OldBlockAddressSize)
+	{
+		//Make the tags for the new smaller block, to valid size and makred as used
+		*reinterpret_cast<int*>(OldBlockAddress) = NewBlockSize | 1;
+		*reinterpret_cast<int*>(IncrementPointer(OldBlockAddress, NewBlockSize - TAG_SIZE)) = NewBlockSize | 1;
+
+		int LeftoverBlockSize = OldBlockAddressSize - NewBlockSize;
+		void* LeftoverBlcokAddress = IncrementPointer(OldBlockAddress, NewBlockSize);
+		//Mark the leftover block to the smaller size
+		*reinterpret_cast<int*>(LeftoverBlcokAddress) = LeftoverBlockSize;
+		*reinterpret_cast<int*>(IncrementPointer(LeftoverBlcokAddress, LeftoverBlockSize - TAG_SIZE)) = LeftoverBlockSize;
+
+
+		//See if the right block of the leftover is unusied to coalesce them
+		void* BlockRightToLeftoverBlockAddress = IncrementPointer(LeftoverBlcokAddress, LeftoverBlockSize);
+		//If the right block is free coalesce them
+		if (!(*reinterpret_cast<int*>(BlockRightToLeftoverBlockAddress) & 1))
+		{
+			Coalesce(LeftoverBlcokAddress, BlockRightToLeftoverBlockAddress);
+		}
+
+		return Pointer;
+	}
+	else if (NewBlockSize > OldBlockAddressSize)
+	{
+		//If reallocation is not possible return nullptr
+		//Thus programmer should not discard the pointer he owned
+		//Otherwise he will leak memory
+
+		//Find if there is a large enough free block
+		void* StartingSearchAddress = IncrementPointer(this->Memory, ALLOCATOR_BLOCK_SIZE - TAG_SIZE);
+		void* EndSearchAddress = IncrementPointer(this->Memory, this->MemorySize - TAG_SIZE);
+		void* ReturnedFreeBlockAddress =this->FindSuitableBlock(StartingSearchAddress, EndSearchAddress, NewBlockSize);
+		if (ReturnedFreeBlockAddress > EndSearchAddress)
+		{
+			//No sufficient free block
+			return nullptr;
+		}
+		int ReturnedFreeBlockSize = *reinterpret_cast<int*>(ReturnedFreeBlockAddress);
+
+		void* NewBlockAddress = ReturnedFreeBlockAddress;
+		//Mark the old block as free
+		*reinterpret_cast<int*>(OldBlockAddress) = OldBlockAddressSize;
+		*reinterpret_cast<int*>(IncrementPointer(OldBlockAddress, OldBlockAddressSize - TAG_SIZE)) = OldBlockAddressSize;
+
+		if (ReturnedFreeBlockSize > NewBlockSize)
+		{
+			//Split and mark them as used and unused
+			std::pair<void*, void*> BothBlocks = this->SplitBlock(ReturnedFreeBlockAddress, NewBlockSize, 0, 0);
+			void* LeftoverBlockAddress = BothBlocks.second;
+			//No point in unmasking unmasked was requsted
+			int LeftoverBlockSize = *reinterpret_cast<int*>(LeftoverBlockAddress);
+			void* BlockRightToLeftoverBlockAddress = IncrementPointer(LeftoverBlockAddress, LeftoverBlockSize);
+			int BlockRightToLeftoverBlockTag = *reinterpret_cast<int*>(BlockRightToLeftoverBlockAddress);
+			int BlockRightToLeftoverBlockMask = BlockRightToLeftoverBlockTag & 1;
+			if (!BlockRightToLeftoverBlockMask)
+			{
+				this->Coalesce(LeftoverBlockAddress, BlockRightToLeftoverBlockAddress);
+			}
+
+		}
+		
+		//Mark the new block size and used
+		*reinterpret_cast<int*>(NewBlockAddress) = NewBlockSize | 1;
+		*reinterpret_cast<int*>(IncrementPointer(NewBlockAddress, NewBlockSize - TAG_SIZE)) = NewBlockSize | 1;
+		//Copy the content from old address to new
+		memcpy(IncrementPointer(NewBlockAddress, TAG_SIZE), IncrementPointer(OldBlockAddress, TAG_SIZE), OldBlockAddressSize - 2 * TAG_SIZE);
+
+
+
+
+
+
+	}
+
+
+}
+
+void MyAllocator::Coalesce(void* LeftBlock, void* RightBlock)
 {
 	//Get sizes
-	int LeftBlockSize = *reinterpret_cast<int*>(LeftBlock);
-	int RightBlockSize = *reinterpret_cast<int*>(RightBlock);
+	int LeftBlockSize = *reinterpret_cast<int*>(LeftBlock) & ~1;
+	int RightBlockSize = *reinterpret_cast<int*>(RightBlock) & ~1;
 	int NewBlockSize = LeftBlockSize + RightBlockSize;
 	//Set both tags
 	*reinterpret_cast<int*>(LeftBlock) = NewBlockSize;
 	*reinterpret_cast<int*>(IncrementPointer(LeftBlock, NewBlockSize - TAG_SIZE)) = NewBlockSize;
+}
+
+void * MyAllocator::FindSuitableBlock(void * StartingAddress, void * EndAddress, int RequiredSize)
+{
+	void* CurrentBlockAddress = StartingAddress;
+	while ((CurrentBlockAddress < EndAddress) &&
+		((*reinterpret_cast<int*>(CurrentBlockAddress) & 1) ||
+			(*reinterpret_cast<int*>(CurrentBlockAddress) < RequiredSize)))
+	{
+		CurrentBlockAddress = IncrementPointer(CurrentBlockAddress, (*reinterpret_cast<int*>(CurrentBlockAddress) & ~1));
+	}
+	return CurrentBlockAddress;
+}
+
+std::pair<void*, void*> MyAllocator::SplitBlock(void* BlockAddress, int FirstBlockSize, int LeftBlockUsed, int RightBlockUsed)
+{
+	int SecondBlockSize = (*reinterpret_cast<int*>(BlockAddress) & ~1) - FirstBlockSize;
+	void* SecondBlockAddress = IncrementPointer(BlockAddress, FirstBlockSize);
+	//Set first block tags
+	*reinterpret_cast<int*>(BlockAddress) = FirstBlockSize | LeftBlockUsed;
+	*reinterpret_cast<int*>(IncrementPointer(BlockAddress, FirstBlockSize - TAG_SIZE)) = FirstBlockSize | LeftBlockUsed;
+
+	*reinterpret_cast<int*>(SecondBlockAddress) = SecondBlockSize | RightBlockUsed;
+	*reinterpret_cast<int*>(IncrementPointer(SecondBlockAddress, SecondBlockSize - TAG_SIZE)) = SecondBlockSize | RightBlockUsed;
+
+	return std::make_pair(BlockAddress, SecondBlockAddress);
 }
