@@ -10,8 +10,11 @@ bool Allocator::IsBlockFree(void* Block)
 
 Allocator::Allocator(int Bytes)
 {
-	if (Bytes > ALLOCATOR_BLOCK_SIZE  && Bytes % ALLOCATOR_BLOCK_SIZE == 0)
+	if (Bytes > ALLOCATOR_BLOCK_SIZE)
 	{
+		//Round up to the nearest bytes that are mod ALLOCATOR_BLOCK_SIZE = 0
+		Bytes = Bytes +   static_cast<bool>(Bytes%ALLOCATOR_BLOCK_SIZE)*(ALLOCATOR_BLOCK_SIZE - Bytes%ALLOCATOR_BLOCK_SIZE);
+
 		this->Memory = _aligned_malloc(Bytes, ALLOCATOR_BLOCK_SIZE);
 		this->MemorySize = Bytes;
 		//set boundry tags first and last
@@ -149,6 +152,4 @@ void Allocator::Coalesce(void * LeftBlock, void * RightBlock)
 	//Set both tags
 	*reinterpret_cast<int*>(LeftBlock) = NewBlockSize;
 	*reinterpret_cast<int*>(IncrementPointer(LeftBlock, NewBlockSize - TAG_SIZE)) = NewBlockSize;
-
-
 }

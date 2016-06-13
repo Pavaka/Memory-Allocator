@@ -1,8 +1,6 @@
 const std::size_t TAG_SIZE = sizeof(int);
 const std::size_t ALLOCATOR_BLOCK_SIZE = 16;
 
-
-
 class Allocator
 {
 private:
@@ -10,13 +8,14 @@ private:
 	int MemorySize;
 	Allocator();
 	bool IsBlockFree(void*);
-	//Works on the assumpion that both blocks are free
+	//Works on the assumpion that both blocks are free, 
+	//pointers are to the tag begining of them
 	void Coalesce(void* LeftBlock, void* RightBlock);
 public:
 	Allocator(int Bytes);
 	~Allocator();
 	void* Allocate(int Bytes);
-	//Takes pointer to first usable addres aka address returend by Allocate otherwise UB
+	//Takes pointer to first usable addres -> address returend by Allocate otherwise UB
 	void Deallocate(void*);
 	//Takes a pointer to address returned by Allocate
 	void PrintTags(void* Pointer);
