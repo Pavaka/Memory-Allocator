@@ -1,14 +1,9 @@
 #include <cstdlib>
 #include <iostream>
 #include <malloc.h>
-#include "Allocator.h"
-bool Allocator::IsBlockFree(void* Block)
-{
+#include "MyAllocator.h"
 
-	return false;
-}
-
-Allocator::Allocator(int Bytes)
+MyAllocator::MyAllocator(int Bytes)
 {
 	if (Bytes > ALLOCATOR_BLOCK_SIZE)
 	{
@@ -33,12 +28,12 @@ Allocator::Allocator(int Bytes)
 	}
 }
 
-Allocator::~Allocator()
+MyAllocator::~MyAllocator()
 {
 	_aligned_free(this->Memory);
 }
 //TOFIN
-void * Allocator::Allocate(int Bytes)
+void * MyAllocator::Allocate(int Bytes)
 {
 	//First Block
 	void* CurrentBlockAddress = IncrementPointer(this->Memory, ALLOCATOR_BLOCK_SIZE - TAG_SIZE);
@@ -82,7 +77,7 @@ void * Allocator::Allocate(int Bytes)
 	
 }
 
-void Allocator::Deallocate(void* Pointer)
+void MyAllocator::Deallocate(void* Pointer)
 {
 	void* BlockToBeFreed = IncrementPointer(Pointer, -TAG_SIZE);
 	int BlockToBeFreedSize = *reinterpret_cast<int*>(BlockToBeFreed) & ~1;
@@ -115,7 +110,7 @@ void Allocator::Deallocate(void* Pointer)
 }
 
 
-void Allocator::PrintTags(void* Pointer)
+void MyAllocator::PrintTags(void* Pointer)
 {
 	int MaskedLeftTagValue = *reinterpret_cast<int*>(IncrementPointer(Pointer, -TAG_SIZE));
 	bool IsAllocatedLeft = MaskedLeftTagValue & 1;
@@ -131,10 +126,10 @@ void Allocator::PrintTags(void* Pointer)
 	std::cout << "Allocated block size = " << UnmaskedLeftTagValue << " " << UnmaskedRightTagValue << std::endl;
 }
 
-void Allocator::PrintAllocatorTags()
+void MyAllocator::PrintAllocatorTags()
 {
 	void* CurrentBlockAddress = IncrementPointer(this->Memory, ALLOCATOR_BLOCK_SIZE - TAG_SIZE);
-	std::cout << "---PRINT ALLOCATOR--- \nAllocator Size " << this->MemorySize << std::endl;
+	std::cout << "---------- PRINT ALLOCATOR --------- \nAllocator Size " << this->MemorySize << std::endl;
 	void* EndOfMemory = IncrementPointer(this->Memory, this->MemorySize - TAG_SIZE);
 	while (CurrentBlockAddress < EndOfMemory)
 	{
@@ -143,7 +138,12 @@ void Allocator::PrintAllocatorTags()
 	}
 }
 
-void Allocator::Coalesce(void * LeftBlock, void * RightBlock)
+int MyAllocator::GetMemorySize()
+{
+	return this->MemorySize;
+}
+
+void MyAllocator::Coalesce(void * LeftBlock, void * RightBlock)
 {
 	//Get sizes
 	int LeftBlockSize = *reinterpret_cast<int*>(LeftBlock);
