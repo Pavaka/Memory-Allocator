@@ -2,7 +2,7 @@
 #include <iostream>
 #include "MyAllocator.h"
 
-static MyAllocator MyAlloc(1<<25);
+//static MyAllocator MyAlloc(1<<25);
 
 template <class T>
 class STLAllocator
@@ -17,7 +17,7 @@ public:
 	typedef T&        reference;
 	typedef const T&  const_reference;
 	typedef T         value_type;
-
+	static MyAllocator MyAlloc;
 
 	// rebind STLAllocator to type U
 	template <class U>
@@ -38,7 +38,9 @@ public:
 
 	STLAllocator()
 	{
+
 	}
+
 
 	STLAllocator(const STLAllocator&)
 	{
@@ -53,7 +55,7 @@ public:
 	{
 	}
 
-	// return maximum number of elements that can be allocated, kind of :)
+	// return maximum number of elements that can be allocated
 	size_type max_size() const
 	{
 		return MyAlloc.GetMemorySize() / sizeof(T);
@@ -96,3 +98,5 @@ bool operator!= (const STLAllocator<T1>&,
 {
 	return false;
 }
+template<typename T>
+MyAllocator STLAllocator<T>::MyAlloc = 1<<20;

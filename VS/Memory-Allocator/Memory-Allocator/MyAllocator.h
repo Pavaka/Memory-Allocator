@@ -24,7 +24,7 @@ public:
 	//Takes a pointer to address returned by Allocate
 	void PrintTags(void* Pointer);
 	void PrintAllocatorTags();
-	int GetMemorySize();
+	int GetMemorySize() const;
 	void* Reallocate(void*, int);
 };
 

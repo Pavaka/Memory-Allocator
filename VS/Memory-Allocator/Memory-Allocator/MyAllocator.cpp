@@ -8,7 +8,7 @@ MyAllocator::MyAllocator(int Bytes)
 {
 	if (Bytes > ALLOCATOR_BLOCK_SIZE)
 	{
-		//Round up to the nearest bytes that are mod ALLOCATOR_BLOCK_SIZE = 0
+		//Round up to the nearest bytes that are mod ALLOCATOR_BLOCK_SIZE == 0
 		Bytes = Bytes +   static_cast<bool>(Bytes%ALLOCATOR_BLOCK_SIZE)*(ALLOCATOR_BLOCK_SIZE - Bytes%ALLOCATOR_BLOCK_SIZE);
 
 		this->Memory = _aligned_malloc(Bytes, ALLOCATOR_BLOCK_SIZE);
@@ -33,7 +33,7 @@ MyAllocator::~MyAllocator()
 {
 	_aligned_free(this->Memory);
 }
-//TOFIN
+
 void * MyAllocator::Allocate(int Bytes)
 {
 	//First Block
@@ -41,19 +41,7 @@ void * MyAllocator::Allocate(int Bytes)
 	void* EndOfMemory = IncrementPointer(this->Memory, this->MemorySize - TAG_SIZE);
 	//Required block size
 	int RequiredSize = Bytes + 2 * TAG_SIZE + (ALLOCATOR_BLOCK_SIZE - (Bytes + 2 * TAG_SIZE) % 16);
-	//std::cout << CurrentBlockAddress << std::endl;
-	//std::cout << EndOfMemory << std::endl;
-	//std::cout << "Required size = " << RequiredSize << std::endl;
-	//std::cout << ( int)EndOfMemory - (int)this->Memory << std::endl;
 	//Find satisfying block
-
-	//while ( (CurrentBlockAddress < EndOfMemory) && 
-	//			( (*reinterpret_cast<int*>(CurrentBlockAddress) & 1) || 
-	//				(*reinterpret_cast<int*>(CurrentBlockAddress) < RequiredSize) ) )
-	//{
-	//	CurrentBlockAddress = IncrementPointer(CurrentBlockAddress, (*reinterpret_cast<int*>(CurrentBlockAddress) & ~1 ));
-	//}
-	//Use the function
 	CurrentBlockAddress = this->FindSuitableBlock(CurrentBlockAddress, EndOfMemory, RequiredSize);
 
 	int CurrentBlockSize = *reinterpret_cast<int*>(CurrentBlockAddress) &  ~1;
@@ -142,7 +130,7 @@ void MyAllocator::PrintAllocatorTags()
 	}
 }
 
-int MyAllocator::GetMemorySize()
+int MyAllocator::GetMemorySize() const
 {
 	return this->MemorySize;
 }
@@ -181,39 +169,28 @@ void* MyAllocator::Reallocate(void* Pointer, int RequestedBlockSize)
 
 		return Pointer;
 	}
-	//TODO EXTEND CURRENT BLOCK
 	else if (NewBlockSize > OldBlockAddressSize)
 	{
 		//If reallocation is not possible return nullptr
 		//Thus programmer should not discard the pointer he owned
 		//Otherwise he will leak memory
-		std::cout << "\n\n ENTER DEBUG \n\n" ;
 		//Try to expand with the block after
 		void* BlockRightToOldBlockAddress = IncrementPointer(OldBlockAddress, OldBlockAddressSize);
 		int BlockRightToOldBlockTag = *reinterpret_cast<int*>(BlockRightToOldBlockAddress);
 		int BlockRightToOldBlockMask = BlockRightToOldBlockTag & 1;
 		int BlockRightToOldBlockSize = BlockRightToOldBlockTag & ~1;
-		//std::cout << BlockRightToOldBlockTag << std::endl;
 
-		//std::cout << OldBlockAddressSize << std::endl;
-		//std::cout << BlockRightToOldBlockSize << std::endl;
-		//std::cout << NewBlockSize << std::endl;
 
-		////this->PrintTags(IncrementPointer(OldBlockAddress, TAG_SIZE));
-		////this->PrintTags(IncrementPointer(BlockRightToOldBlockAddress, TAG_SIZE));
-		//std::cout << BlockRightToOldBlockMask << " " << BlockRightToOldBlockSize << std::endl;
 		if ((!(bool)BlockRightToOldBlockMask) && (OldBlockAddressSize + BlockRightToOldBlockSize >= NewBlockSize))
 		{
-			std::cout << "\n\nCASE ONE OENE -------------\n\n";
-			////we can extend the curent block
+			//we can extend the curent block
 			this->Coalesce(OldBlockAddress, BlockRightToOldBlockAddress);
-			this->SplitBlock(OldBlockAddress, NewBlockSize, 1, 0);
+			void* NextToNewBlockAddress = this->SplitBlock(OldBlockAddress, NewBlockSize, 1, 0).second;
 			return IncrementPointer(OldBlockAddress, TAG_SIZE);
 		}
 		else
 		{
-			std::cout << "\n\nCASE TWO TWO -------------\n\n";
-
+			//have to find a new large enough block
 			//Find if there is a large enough free block
 			void* StartingSearchAddress = IncrementPointer(this->Memory, ALLOCATOR_BLOCK_SIZE - TAG_SIZE);
 			void* EndSearchAddress = IncrementPointer(this->Memory, this->MemorySize - TAG_SIZE);
@@ -229,11 +206,11 @@ void* MyAllocator::Reallocate(void* Pointer, int RequestedBlockSize)
 			//Mark the old block as free
 			//*reinterpret_cast<int*>(OldBlockAddress) = OldBlockAddressSize;
 			//*reinterpret_cast<int*>(IncrementPointer(OldBlockAddress, OldBlockAddressSize - TAG_SIZE)) = OldBlockAddressSize;
-
+			
 			if (ReturnedFreeBlockSize > NewBlockSize)
 			{
 				//Split and mark them as used and unused
-				std::pair<void*, void*> BothBlocks = this->SplitBlock(ReturnedFreeBlockAddress, NewBlockSize, 0, 0);
+				std::pair<void*, void*> BothBlocks = this->SplitBlock(NewBlockAddress, NewBlockSize, 0, 0);
 				void* LeftoverBlockAddress = BothBlocks.second;
 				//No point in unmasking unmasked was requsted
 				int LeftoverBlockSize = *reinterpret_cast<int*>(LeftoverBlockAddress);
